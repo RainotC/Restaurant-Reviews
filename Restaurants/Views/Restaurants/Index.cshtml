@@ -1,0 +1,79 @@
+﻿@model IEnumerable<Restaurants.Models.Restaurant>
+
+@{
+    ViewData["Title"] = "List of restaurants";
+    var averageRatings = ViewData["AverageRatings"] as Dictionary<int, double>;
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.MenuType)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Address.Street)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Address.ZipCode)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Address.City)
+            </th>
+            <th>
+                Average Rating
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Name)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.MenuType)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Address.Street)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Address.ZipCode)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Address.City)
+            </td>
+            <td>
+                @{
+                    var avg = averageRatings != null && averageRatings.ContainsKey(item.Id)
+                    ? averageRatings[item.Id]
+                    : 0;
+                }
+                @if (avg > 0)
+                {
+                    @avg.ToString("0.0")
+                }
+                else
+                {
+                    <span>No ratings</span>
+                }
+            </td>
+            <td>
+@*                 <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a> *@
+               <a asp-action="Details" asp-route-id="@item.Id">Details</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
