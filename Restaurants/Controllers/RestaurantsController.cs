@@ -7,36 +7,91 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Restaurants.Data;
 using Restaurants.Models;
+using Restaurants.Services;
 
 namespace Restaurants.Controllers
 {
     public class RestaurantsController : Controller
     {
         private readonly AppDbContext _context;
-
-        public RestaurantsController(AppDbContext context)
+		private readonly GeolocationService _geoService;
+		public RestaurantsController(AppDbContext context, GeolocationService geoService)
         {
-            _context = context;
+			_geoService = geoService;
+			_context = context;
         }
 
         // GET: Restaurants
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string sortOrder, string searchString, string menuFilter)
         {
-            var restaurants = await _context.Restaurants
-            .Include(r => r.Reviews)
-            .ToListAsync();
+            ViewData["NameSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            ViewData["CurrentFilter"] = searchString;
+            ViewData["CurrentMenu"] = menuFilter;
 
-            var averageRatings = restaurants.ToDictionary(
+            var restaurants = from r in _context.Restaurants.Include(r => r.Reviews)
+                              select r;
+
+            if (!String.IsNullOrEmpty(searchString))
+            {
+                restaurants = restaurants.Where(r => r.Name.Contains(searchString));
+            }
+
+            if (!String.IsNullOrEmpty(menuFilter))
+            {
+                restaurants = restaurants.Where(r => r.MenuType == menuFilter);
+            }
+
+            restaurants = sortOrder switch
+            {
+                "name_desc" => restaurants.OrderByDescending(r => r.Name),
+                _ => restaurants.OrderBy(r => r.Name),
+            };
+
+            var menuTypes = await _context.Restaurants
+             .Select(r => r.MenuType)
+             .Distinct()
+             .OrderBy(m => m)
+             .ToListAsync();
+            ViewBag.MenuTypes = new SelectList(menuTypes);
+
+            var list = await restaurants.ToListAsync();
+            var averageRatings = list.ToDictionary(
                 r => r.Id,
                 r => r.Reviews.Any() ? r.Reviews.Average(rv => rv.Rating) : 0);
-
             ViewData["AverageRatings"] = averageRatings;
 
-            return View(restaurants);
+            return View(list);
         }
 
-        // GET: Restaurants/Details/5
-        public async Task<IActionResult> Details(int? id)
+
+        // GET: Restaurants/Nearby
+        [HttpGet]
+        public async Task<IActionResult> Nearby(double lat, double lon)
+		{
+			var allRestaurants = await _context.Restaurants.Include(r => r.Address).ToListAsync();
+
+			var userLocation = new GeoLocation { Latitude = lat, Longitude = lon };
+
+			var nearbyRestaurants = allRestaurants.Where(r =>
+			{
+				
+				var addressString = $"{r.Address.Street}, {r.Address.ZipCode} {r.Address.City}";
+				var coords = _geoService.GetCoordinatesAsync(addressString).GetAwaiter().GetResult();
+
+				if (coords == null) return false;
+
+				var restaurantLocation = new GeoLocation { Latitude = coords.Value.lat, Longitude = coords.Value.lon };
+				var distance = _geoService.CalculateDistance(userLocation, restaurantLocation);
+                 
+                return distance <= 10; // 10 km radius
+            }).ToList();
+
+			return View("Index", nearbyRestaurants); 
+		}
+
+
+	// GET: Restaurants/Details/5
+	public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
             {
@@ -58,6 +113,18 @@ namespace Restaurants.Controllers
             return View(restaurant);
         }
 
+        private async Task SetCoordinatesAsync(Restaurant restaurant)
+        {
+            var addressString = $"{restaurant.Address.Street}, {restaurant.Address.City}, {restaurant.Address.ZipCode}";
+            var coords = await _geoService.GetCoordinatesAsync(addressString);
+            if (coords != null)
+            {
+                restaurant.Latitude = coords.Value.lat;
+                restaurant.Longitude = coords.Value.lon;
+            }
+        }
+
+
         // GET: Restaurants/Create
         public IActionResult Create()
         {
@@ -73,6 +140,8 @@ namespace Restaurants.Controllers
         {
             if (ModelState.IsValid)
             {
+                await SetCoordinatesAsync(restaurant);
+
                 _context.Add(restaurant);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -112,6 +181,7 @@ namespace Restaurants.Controllers
             {
                 try
                 {
+                    await SetCoordinatesAsync(restaurant);
                     _context.Update(restaurant);
                     await _context.SaveChangesAsync();
                 }

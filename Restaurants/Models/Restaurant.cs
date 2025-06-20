@@ -12,6 +12,8 @@ namespace Restaurants.Models
         public string MenuType { get; set; }
         [Required]
         public Address Address { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
         public List<Review> Reviews { get; set; } = new();
     }
 }

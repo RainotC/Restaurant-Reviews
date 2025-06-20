@@ -1,5 +1,6 @@
 using Restaurants.Data;
 using Microsoft.EntityFrameworkCore;
+using Restaurants.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=restaurants.db"));
-
+builder.Services.AddHttpClient<GeolocationService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
