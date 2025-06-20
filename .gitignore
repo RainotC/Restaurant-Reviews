@@ -404,3 +404,21 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# LibMan dependencies
+Restaurants/wwwroot/lib/
+
+
+Restaurants/appsettings.Development.json
+Restaurants/Properties/launchSettings.json
+
+
+# Visual Studio artifacts
+.vs/
+*.user
+*.suo
+*.dbmdl
+*.log
+*.pdb
+bin/
+obj/
