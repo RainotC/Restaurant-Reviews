@@ -53,10 +53,9 @@ namespace Restaurants.Controllers
                 _ => restaurants.OrderBy(r => r.Name),
             };
 
-            // Pobierz listę z bazy (materializacja)
             var list = await restaurants.ToListAsync();
 
-            // Jeśli mamy lokalizację użytkownika, filtrujemy po odległości w pamięci
+            
             if (lat.HasValue && lon.HasValue)
             {
                 var userLocation = new GeoLocation { Latitude = lat.Value, Longitude = lon.Value };
