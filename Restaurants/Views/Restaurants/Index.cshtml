@@ -1,22 +1,27 @@
 ﻿@model IEnumerable<Restaurants.Models.Restaurant>
 
 @{
-    ViewData["Title"] = "List of restaurants";
     var averageRatings = ViewData["AverageRatings"] as Dictionary<int, double>;
 }
 
-<h1>Index</h1>
-@*<form asp-controller="Restaurants" asp-action="Index" method="get">
-    <p>
-        Search by name: <input type="text" name="searchString" value="@ViewData["CurrentFilter"]" />
-        <input type="submit" value="Filter" class="btn btn-outline-primary" />
-    </p>
-</form>
-*@
-
+<h1>List of restaurants</h1>
 <p>
     <a asp-action="Create">Create New</a>
 </p>
+<form asp-controller="Restaurants" asp-action="Index" method="get" class="form-inline mb-3">
+    <p>
+        Search by name:
+        <input type="text" name="searchString" value="@ViewData["CurrentFilter"]" class="form-control mr-2" />
+
+        Menu type:
+        @Html.DropDownList("menuFilter", (SelectList)ViewBag.MenuTypes, "All", new { @class = "form-control mr-2" })
+
+        <input type="submit" value="Filter" class="btn btn-outline-primary" />
+    </p>
+</form>
+
+
+
 
 <button id="btnNearby" class="btn btn-primary">Show only close to me</button>
 <table class="table">
@@ -25,18 +30,24 @@
             <th>
                 <a asp-action="Index"
                    asp-route-sortOrder="@ViewData["NameSortParm"]"
-                   asp-route-searchString="@ViewData["CurrentFilter"]">
+                   asp-route-searchString="@ViewData["CurrentFilter"]"
+                   asp-route-menuFilter="@ViewData["CurrentMenu"]"
+                   asp-route-lat="@(ViewData["UserLat"] != null ? ViewData["UserLat"].ToString().Replace(',', '.') : null)"
+                   asp-route-lon="@(ViewData["UserLon"] != null ? ViewData["UserLon"].ToString().Replace(',', '.') : null)">
                     Name
                     @{
-                        if ((string)ViewData["NameSortParm"] == "")
-                        {
-                            <text>▲</text>
-                        }
-                        else if ((string)ViewData["NameSortParm"] == "name_desc")
-                        {
-                            <text>▼</text>
-                        }
+                        var currentSort = (string)ViewData["CurrentSort"];
                     }
+
+                    @if (currentSort == "name")
+                    {
+                        <text>▲</text>
+                    }
+                    else if (currentSort == "name_desc")
+                    {
+                        <text>▼</text>
+                    }
+
                 </a>
             </th>
 
@@ -109,15 +120,33 @@
         document.getElementById("btnNearby").addEventListener("click", function () {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function (position) {
-                    var lat = position.coords.latitude;
-                    var lon = position.coords.longitude;
-                    window.location.href = '@Url.Action("Nearby", "Restaurants")' + `?lat=${lat}&lon=${lon}`;
+                    var lat = position.coords.latitude.toString().replace(',', '.');
+                    var lon = position.coords.longitude.toString().replace(',', '.');
+
+                    var url = '@Url.Action("Index", "Restaurants")';
+                    url += `?lat=${lat}&lon=${lon}`;
+
+                    var currentSearch = '@ViewData["CurrentFilter"]';
+                    var currentSort = '@ViewData["NameSortParm"]';
+                    var currentMenu = '@ViewData["CurrentMenu"]';
+                    if (currentMenu) {
+                        url += `&menuFilter=${encodeURIComponent(currentMenu)}`;
+                    }
+                    if (currentSearch) {
+                        url += `&searchString=${encodeURIComponent(currentSearch)}`;
+                    }
+                    if (currentSort) {
+                        url += `&sortOrder=${encodeURIComponent(currentSort)}`;
+                    }
+
+                    window.location.href = url;
                 }, function (error) {
-                    alert("Can't access your loaction: " + error.message);
+                    alert("Can't access your location: " + error.message);
                 });
             } else {
-                alert("Your browser doesnt support geoloctaion");
+                alert("Your browser doesn't support geolocation");
             }
         });
+
     </script>
 }

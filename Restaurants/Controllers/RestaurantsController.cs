@@ -22,14 +22,20 @@ namespace Restaurants.Controllers
         }
 
         // GET: Restaurants
-        public async Task<IActionResult> Index(string sortOrder, string searchString, string menuFilter)
+        public async Task<IActionResult> Index(string sortOrder, string searchString, string menuFilter, double? lat, double? lon)
         {
-            ViewData["NameSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            ViewData["CurrentSort"] = sortOrder;
+            ViewData["NameSortParm"] = sortOrder == "name" ? "name_desc" : "name";
             ViewData["CurrentFilter"] = searchString;
             ViewData["CurrentMenu"] = menuFilter;
 
-            var restaurants = from r in _context.Restaurants.Include(r => r.Reviews)
-                              select r;
+            ViewData["UserLat"] = lat?.ToString() ?? "";
+            ViewData["UserLon"] = lon?.ToString() ?? "";
+
+            var restaurants = _context.Restaurants
+                                      .Include(r => r.Reviews)
+                                      .Include(r => r.Address)
+                                      .AsQueryable();
 
             if (!String.IsNullOrEmpty(searchString))
             {
@@ -47,51 +53,47 @@ namespace Restaurants.Controllers
                 _ => restaurants.OrderBy(r => r.Name),
             };
 
+            // Pobierz listę z bazy (materializacja)
+            var list = await restaurants.ToListAsync();
+
+            // Jeśli mamy lokalizację użytkownika, filtrujemy po odległości w pamięci
+            if (lat.HasValue && lon.HasValue)
+            {
+                var userLocation = new GeoLocation { Latitude = lat.Value, Longitude = lon.Value };
+
+                list = list.Where(r =>
+                {
+                    if (!r.Latitude.HasValue || !r.Longitude.HasValue)
+                        return false;
+
+                    var restaurantLocation = new GeoLocation { Latitude = r.Latitude.Value, Longitude = r.Longitude.Value };
+                    var distance = _geoService.CalculateDistance(userLocation, restaurantLocation);
+
+                    return distance <= 10; // 10 km radius
+                }).ToList();
+            }
+
             var menuTypes = await _context.Restaurants
-             .Select(r => r.MenuType)
-             .Distinct()
-             .OrderBy(m => m)
-             .ToListAsync();
+                                 .Select(r => r.MenuType)
+                                 .Distinct()
+                                 .OrderBy(m => m)
+                                 .ToListAsync();
+
             ViewBag.MenuTypes = new SelectList(menuTypes);
 
-            var list = await restaurants.ToListAsync();
             var averageRatings = list.ToDictionary(
                 r => r.Id,
                 r => r.Reviews.Any() ? r.Reviews.Average(rv => rv.Rating) : 0);
+
             ViewData["AverageRatings"] = averageRatings;
 
             return View(list);
         }
 
 
-        // GET: Restaurants/Nearby
-        [HttpGet]
-        public async Task<IActionResult> Nearby(double lat, double lon)
-		{
-			var allRestaurants = await _context.Restaurants.Include(r => r.Address).ToListAsync();
 
-			var userLocation = new GeoLocation { Latitude = lat, Longitude = lon };
-
-			var nearbyRestaurants = allRestaurants.Where(r =>
-			{
-				
-				var addressString = $"{r.Address.Street}, {r.Address.ZipCode} {r.Address.City}";
-				var coords = _geoService.GetCoordinatesAsync(addressString).GetAwaiter().GetResult();
-
-				if (coords == null) return false;
-
-				var restaurantLocation = new GeoLocation { Latitude = coords.Value.lat, Longitude = coords.Value.lon };
-				var distance = _geoService.CalculateDistance(userLocation, restaurantLocation);
-                 
-                return distance <= 10; // 10 km radius
-            }).ToList();
-
-			return View("Index", nearbyRestaurants); 
-		}
-
-
-	// GET: Restaurants/Details/5
-	public async Task<IActionResult> Details(int? id)
+        // GET: Restaurants/Details/5
+        public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
             {
